@@ -1,5 +1,3 @@
-### **README.md (Updated)**
-
 # NEON AOP Expert Multi-Sensor Pipeline
 
 This repository provides an end-to-end workflow for processing **NEON (National Ecological Observatory Network)** Airborne Observation Platform data. It specializes in **Sensor Fusion**, combining LiDAR, Hyperspectral, and RGB data to move from raw sensor counts to individual tree-level metrics.
@@ -66,9 +64,3 @@ pip install requests numpy rasterio h5py tqdm scipy geopandas shapely matplotlib
 2. **Tree Inventory:** Drag in the `.shp` file. Use **Categorized Symbology** on the `Species` column.
 3. **Labeling:** Enable labels for the `Height_m` attribute to see tree heights in the map view.
 4. **Biomass Heatmap:** Apply a `Viridis` or `YlGn` ramp to the Biomass Proxy to identify high-productivity forest stands.
-
----
-
-### **Next Step**
-
-You now have a complete toolkit! Would you like me to add a **Statistical Summary** script that creates a bar chart showing the distribution of tree heights (e.g., how many trees are , , etc.) for your BART site?
