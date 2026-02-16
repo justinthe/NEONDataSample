@@ -2,75 +2,54 @@ import requests
 import os
 from tqdm import tqdm
 
-def download_file(url, folder, filename):
-    os.makedirs(folder, exist_ok=True)
-    path = os.path.join(folder, filename)
-    
-    # Get the file size from headers without downloading yet
-    head = requests.head(url)
-    total_size = int(head.headers.get('content-length', 0))
-    
-    if os.path.exists(path):
-        if os.path.getsize(path) == total_size:
-            print(f"  [Skipping] {filename} (Already exists)")
-            return
-        else:
-            print(f"  [Resume] {filename} (Size mismatch, re-downloading)")
-
-    # Download with progress bar
-    print(f"  [Target] {filename} ({total_size / (1024*1024):.2f} MB)")
-    
-    response = requests.get(url, stream=True)
-    
-    with open(path, 'wb') as f, tqdm(
-        desc=filename,
-        total=total_size,
-        unit='iB',
-        unit_scale=True,
-        unit_divisor=1024,
-    ) as bar:
-        for chunk in response.iter_content(chunk_size=8192):
-            size = f.write(chunk)
-            bar.update(size)
-
-def get_neon_sample():
-    # Site: San Joaquin Experimental Range (SJER)
-    # Tile: 257000 Easting, 4112000 Northing (UTM Zone 11N)
-    site = "SJER"
-    year_month = "2021-03" 
-    tile_coords = "257000_4112000"
-    
-    products = {
-        "RGB": "DP3.30010.001",    # Camera Mosaic
-        "LiDAR": "DP3.30015.001",  # Canopy Height Model
-        "HS": "DP3.30006.001"      # Hyperspectral Reflectance
-    }
-
-    base_dir = "neon_data"
-    
-    print("--- NEON AOP Data Finder ---")
-    
-    for name, p_id in products.items():
-        api_url = f"https://data.neonscience.org/api/v0/data/{p_id}/{site}/{year_month}"
+class NEONDownloader:
+    def __init__(self, site, year_month, tile_coords):
+        self.site = site
+        self.year_month = year_month
+        self.tile_coords = tile_coords
+        self.year = year_month.split("-")[0]
+        self.base_dir = f"neon_data_{site}_{self.year}"
         
-        try:
-            res = requests.get(api_url)
-            res.raise_for_status()
-            files = res.json()['data']['files']
-            
-            # Filter for the specific 1km tile and correct extension
-            target_files = [f for f in files if tile_coords in f['name'] and f['name'].endswith(('.h5', '.tif'))]
-            
-            if not target_files:
-                print(f"\n[!] No matching tile found for {name}")
-                continue
+        # Product IDs for all 44 metrics 
+        self.products = {
+            "RGB": "DP3.30010.001",    # Visual/Species Identification [cite: 13]
+            "LiDAR_CHM": "DP3.30015.001", # Height/Volume [cite: 7, 18]
+            "LiDAR_DTM": "DP3.30024.001", # Topography/Hydrology [cite: 63, 64]
+            "HS": "DP3.30006.001"      # Health/NDVI/LAI/Chemistry [cite: 23, 40, 44]
+        }
 
-            for f_meta in target_files:
-                download_file(f_meta['url'], os.path.join(base_dir, name), f_meta['name'])
+    def download_all(self):
+        print(f"--- Fetching Data for {self.site} ({self.year_month}) ---")
+        for name, p_id in self.products.items():
+            api_url = f"https://data.neonscience.org/api/v0/data/{p_id}/{self.site}/{self.year_month}"
+            res = requests.get(api_url)
+            
+            if res.status_code == 200:
+                files = res.json()['data']['files']
+                target_files = [f for f in files if self.tile_coords in f['name'] and f['name'].lower().endswith(('.h5', '.tif'))]
                 
-        except Exception as e:
-            print(f"\n[!] Error fetching {name}: {e}")
+                if not target_files:
+                    print(f"  [!] No matching tile {self.tile_coords} for {name}")
+                    continue
+
+                for f_meta in target_files:
+                    subfolder = "LiDAR" if "LiDAR" in name else name
+                    dest_folder = os.path.join(self.base_dir, subfolder)
+                    self._request_download(f_meta['url'], dest_folder, f_meta['name'])
+            else:
+                print(f"  [!] Site/Date unavailable for {name}")
+
+    def _request_download(self, url, folder, filename):
+        os.makedirs(folder, exist_ok=True)
+        path = os.path.join(folder, filename)
+        response = requests.get(url, stream=True)
+        total_size = int(response.headers.get('content-length', 0))
+        
+        with open(path, 'wb') as f, tqdm(total=total_size, unit='iB', unit_scale=True) as bar:
+            for chunk in response.iter_content(chunk_size=8192):
+                bar.update(f.write(chunk))
 
 if __name__ == "__main__":
-    get_neon_sample()
-    print("\nAll downloads complete!")
+    # CHANGE THESE PARAMETERS HERE
+    downloader = NEONDownloader(site="BART", year_month="2017-08", tile_coords="315000_4878000")
+    downloader.download_all()

@@ -33,6 +33,7 @@ class TreeInventoryTool:
             print(f"  [Found] {count} individual trees in tile.")
 
             tree_data = []
+            tree_id_counter = 1
             
             # 2. Loop through detections to extract metrics
             rows, cols = np.where(local_max)
@@ -53,14 +54,33 @@ class TreeInventoryTool:
                 # 2. Species Identification (Simplified Spectral Proxy)
                 # Maples/Deciduous usually have NDVI > 0.75, Conifers < 0.75
                 species = "Deciduous" if health > 0.75 else "Coniferous"
+                
+                # Approximate bounding box size based on tree diameter (simulating CV algorithm)
+                # Convert DBH to approximate crown diameter (rough estimation: crown_diameter ~= DBH * 0.5)
+                # Then convert to meters and calculate bbox in coordinate space
+                crown_radius_m = (dbh / 100) * 0.5 / 2  # Convert cm to m, apply scaling factor, get radius
+                pixel_size = abs(transform[0])  # Get pixel resolution from transform
+                bbox_offset = max(crown_radius_m, pixel_size * 2)  # Minimum 2 pixel offset
+                
+                bbox_xmin = x - bbox_offset
+                bbox_ymin = y - bbox_offset
+                bbox_xmax = x + bbox_offset
+                bbox_ymax = y + bbox_offset
 
                 tree_data.append({
+                    'tree_id': tree_id_counter,
+                    'site_id': 'BART',
                     'geometry': Point(x, y),
-                    'Height_m': round(height, 2),
-                    'NDVI_Health': round(health, 3),
-                    'DBH_cm_est': round(dbh, 2),
-                    'Species': species
+                    'height_m': round(height, 2),
+                    'health': round(health, 3),
+                    'diameter_cm': round(dbh, 2),
+                    'species': species,
+                    'bbox_xmin': round(bbox_xmin, 2),
+                    'bbox_ymin': round(bbox_ymin, 2),
+                    'bbox_xmax': round(bbox_xmax, 2),
+                    'bbox_ymax': round(bbox_ymax, 2)
                 })
+                tree_id_counter += 1
 
             # Create GeoDataFrame and export to SHP
             gdf = gpd.GeoDataFrame(tree_data, crs=chm_src.crs)
